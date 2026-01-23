@@ -42,7 +42,6 @@ file(GLOB LIBEVENT_DIR ${DEPS_BASE_DIR}/libevent*)
 
 # Find main libraries
 # Find all moxygen libraries
-find_library(MOXYGEN_LIB moxygen PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MOQRELAY_LIB moqrelay PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MOQCACHE_LIB moqcache PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MLOGGER_LIB mlogger PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
@@ -53,8 +52,28 @@ find_library(FIZZ_LIB fizz PATHS ${DEPS_BASE_DIR}/fizz/lib NO_DEFAULT_PATH)
 find_library(PROXYGEN_LIB proxygen PATHS ${DEPS_BASE_DIR}/proxygen/lib NO_DEFAULT_PATH)
 find_library(QUIC_WEBTRANSPORT_LIB quicwebtransport PATHS ${DEPS_BASE_DIR}/proxygen/lib NO_DEFAULT_PATH)
 find_library(WANGLE_LIB wangle PATHS ${DEPS_BASE_DIR}/wangle/lib NO_DEFAULT_PATH)
-# Find ALL mvfst libraries using GLOB
-file(GLOB MVFST_LIBS "${DEPS_BASE_DIR}/mvfst/lib/libmvfst*.a")
+# Find mvfst libraries explicitly to ensure proper linking order
+find_library(MVFST_TRANSPORT_LIB mvfst_transport PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_CLIENT_LIB mvfst_client PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_FIZZ_CLIENT_LIB mvfst_fizz_client PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_BUF_ACCESSOR_LIB mvfst_buf_accessor PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_STATE_MACHINE_LIB mvfst_state_machine PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_FOLLY_UTILS_LIB mvfst_folly_utils PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+find_library(MVFST_CODEC_LIB mvfst_codec PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
+# Find remaining mvfst libraries with GLOB
+file(GLOB MVFST_REMAINING_LIBS "${DEPS_BASE_DIR}/mvfst/lib/libmvfst*.a")
+
+# Consolidate mvfst libraries in a single list to preserve ordering
+set(MVFST_LIBS
+    ${MVFST_TRANSPORT_LIB}
+    ${MVFST_CLIENT_LIB}
+    ${MVFST_FIZZ_CLIENT_LIB}
+    ${MVFST_BUF_ACCESSOR_LIB}
+    ${MVFST_STATE_MACHINE_LIB}
+    ${MVFST_FOLLY_UTILS_LIB}
+    ${MVFST_CODEC_LIB}
+    ${MVFST_REMAINING_LIBS}
+)
 find_library(GLOG_LIB glog PATHS ${GLOG_DIR}/lib NO_DEFAULT_PATH)
 find_library(GFLAGS_LIB gflags PATHS ${GFLAGS_DIR}/lib NO_DEFAULT_PATH)
 find_library(FMT_LIB fmt PATHS ${FMT_DIR}/lib NO_DEFAULT_PATH)
@@ -63,7 +82,19 @@ find_library(DOUBLE_CONVERSION_LIB double-conversion PATHS ${DOUBLE_CONVERSION_D
 
 # Find additional libraries that might be needed
 find_library(SSL_LIB ssl PATHS ${OPENSSL_DIR}/lib NO_DEFAULT_PATH)
+if(NOT SSL_LIB)
+    message(WARNING "SSL library not found in ${OPENSSL_DIR}/lib, trying system-wide")
+    find_library(SSL_LIB ssl)
+endif()
+
 find_library(CRYPTO_LIB crypto PATHS ${OPENSSL_DIR}/lib NO_DEFAULT_PATH)
+if(NOT CRYPTO_LIB)
+    message(WARNING "Crypto library not found in ${OPENSSL_DIR}/lib, trying system-wide")
+    find_library(CRYPTO_LIB crypto)
+endif()
+
+# libunwind is needed by folly's stacktrace utilities
+find_library(UNWIND_LIB unwind)
 
 # Find lz4 library with more flexible pattern matching
 file(GLOB LZ4_DIRS "${DEPS_BASE_DIR}/lz4*")
@@ -217,11 +248,14 @@ target_link_libraries(interop_tests
     ${MLOGGER_LIB}
     ${MOQMI_LIB}
     ${FLVPARSER_LIB}
-    # Then mvfst libraries
-    ${MVFST_LIBS}
-    # Then the rest in dependency order
+    # Resolve circular references between mvfst static libs and their deps
+    -Wl,--start-group
+    # Proxygen depends on mvfst; place it before mvfst so mvfst can satisfy its symbols
     ${PROXYGEN_LIB}
     ${QUIC_WEBTRANSPORT_LIB}
+    # mvfst static libraries
+    ${MVFST_LIBS}
+    # mvfst depends on these
     ${WANGLE_LIB}
     ${FIZZ_LIB}
     ${FOLLY_LIB}
@@ -232,6 +266,7 @@ target_link_libraries(interop_tests
     ${DOUBLE_CONVERSION_LIB}
     ${SSL_LIB}
     ${CRYPTO_LIB}
+    ${UNWIND_LIB}
     ${ZSTD_LIB}
     ${LZ4_LIB}
     ${BOOST_CONTEXT_LIB}
@@ -239,9 +274,9 @@ target_link_libraries(interop_tests
     ${BOOST_THREAD_LIB}
     ${SODIUM_LIB}
     ${OQS_LIB}
+    -Wl,--end-group
     pthread
     dl
-    c++abi
 )
 
 set_target_properties(interop_tests PROPERTIES
