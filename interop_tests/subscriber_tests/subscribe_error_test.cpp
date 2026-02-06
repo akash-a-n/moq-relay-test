@@ -1,8 +1,6 @@
-#include "moxygen_adapter/moxygen_mocks.h"
-#include "test_registry.h"
 #include "base/base_test.h"
-#include "moxygen_adapter/moxygen_fixture.h"
-#include "moxygen_adapter/moxygen_interface.h"
+#include "base/moqt_interface.h"
+#include "test_registry.h"
 #include <folly/coro/BlockingWait.h>
 #include <memory>
 #include <moxygen/MoQConsumers.h>
@@ -18,9 +16,12 @@ public:
 
   std::string getName() const override { return "SubscribeErrorTest"; }
   std::string getDescription() const override {
-    return "Verifies that a client receives an error when subscribing to a non-existent track";
+    return "Verifies that a client receives an error when subscribing to a "
+           "non-existent track";
   }
-  TestCategory getCategory() const override { return TestCategory::ALL; }
+  TestCategory getCategories() const override { 
+    return TestCategory::SUBSCRIBER | TestCategory::ERROR_HANDLING; 
+  }
 
 protected:
   TestResult execute() override;
@@ -28,15 +29,13 @@ protected:
 private:
   std::string trackNamespace_{"test"};
   std::string trackName_{"interop-track"};
-  std::shared_ptr<TestTrackConsumer> trackConsumer_ =
-      std::make_shared<TestTrackConsumer>();
 };
 
 REGISTER_TEST(SubscribeErrorTest);
 
 TestResult SubscribeErrorTest::execute() {
-  log("Testing subscribe error for non-existent track: " + trackNamespace_ + "/" +
-      trackName_);
+  log("Testing subscribe error for non-existent track: " + trackNamespace_ +
+      "/" + trackName_);
 
   // Attempt to subscribe to a non-existent track
   log("Subscribing to non-existent track");
@@ -44,11 +43,11 @@ TestResult SubscribeErrorTest::execute() {
   assertNotNull(subscriber.get(), "Subscriber interface should not be null");
   assertTrue(subscriber->isConnected(), "Subscriber should be connected");
 
-  bool subscribeResult = folly::coro::blockingWait(
-      subscriber->subscribe(trackNamespace_, trackName_, trackConsumer_));
-  
+  bool subscribeResult = subscriber->subscribe(trackNamespace_, trackName_);
+
   // Verify that the subscribe resulted in an error
-  assertFalse(subscribeResult, "Subscribe request should fail for non-existent track");
+  assertFalse(subscribeResult,
+              "Subscribe request should fail for non-existent track");
   log("Subscribe error received as expected");
 
   return TestResult::PASS;

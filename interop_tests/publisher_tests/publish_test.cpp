@@ -1,8 +1,7 @@
-#include "moxygen_adapter/moxygen_mocks.h"
-#include "test_registry.h"
 #include "base/base_test.h"
-#include "moxygen_adapter/moxygen_fixture.h"
-#include "moxygen_adapter/moxygen_interface.h"
+#include "base/fixture_interface.h"
+#include "base/moqt_interface.h"
+#include "test_registry.h"
 #include <folly/coro/BlockingWait.h>
 #include <memory>
 #include <string>
@@ -24,7 +23,7 @@ public:
     return "Verifies that a client can successfully publish a track to the "
            "relay";
   }
-  TestCategory getCategory() const override { return TestCategory::ALL; }
+  TestCategory getCategories() const override { return TestCategory::PUBLISHER; }
 
 protected:
   TestResult execute() override;
@@ -45,15 +44,9 @@ TestResult PublishTest::execute() {
   assertNotNull(publisher.get(), "Publisher interface should not be null");
   assertTrue(publisher->isConnected(), "Publisher should be connected");
 
-  // Create subscription handle
-//   auto subscriptionHandle = fixture_->createSubscriptionHandle();
-//   assertNotNull(subscriptionHandle.get(),
-//                 "Subscription handle should not be null");
-
   // Send publish request
   log("Sending publish request...");
-  bool publishResult = folly::coro::blockingWait(
-      publisher->publish(trackNamespace_, trackName_));
+  bool publishResult = publisher->publish(trackNamespace_, trackName_);
 
   // Verify publish succeeded
   assertTrue(publishResult, "Publish request should succeed");

@@ -8,11 +8,11 @@
 namespace interop_test {
 
 // Simple test subscription handle for publish/subscribe tests
-class TestSubscriptionHandle : public moxygen::SubscriptionHandle {
+class MockSubscriptionHandle : public moxygen::SubscriptionHandle {
 public:
-  TestSubscriptionHandle() = default;
-  explicit TestSubscriptionHandle(moxygen::SubscribeOk ok);
-  
+  MockSubscriptionHandle() = default;
+  explicit MockSubscriptionHandle(moxygen::SubscribeOk ok);
+
   void unsubscribe() override;
   bool wasUnsubscribed() const { return unsubscribe_called_; }
   folly::coro::Task<SubscribeUpdateResult>
@@ -23,10 +23,10 @@ private:
 };
 
 // Simple TrackConsumer implementation for testing
-class TestTrackConsumer : public moxygen::TrackConsumer {
+class MockTrackConsumer : public moxygen::TrackConsumer {
 public:
-  TestTrackConsumer() = default;
-  ~TestTrackConsumer() override = default;
+  MockTrackConsumer() = default;
+  ~MockTrackConsumer() override = default;
 
   folly::Expected<folly::Unit, moxygen::MoQPublishError>
   setTrackAlias(moxygen::TrackAlias alias) override;
@@ -34,25 +34,24 @@ public:
   folly::Expected<std::shared_ptr<moxygen::SubgroupConsumer>,
                   moxygen::MoQPublishError>
   beginSubgroup(uint64_t groupID, uint64_t subgroupID,
-                moxygen::Priority priority) override;
+                moxygen::Priority priority,
+                bool containsLastInGroup = false) override;
 
   folly::Expected<folly::SemiFuture<folly::Unit>, moxygen::MoQPublishError>
   awaitStreamCredit() override;
 
   folly::Expected<folly::Unit, moxygen::MoQPublishError>
   objectStream(const moxygen::ObjectHeader &header,
-               moxygen::Payload payload) override;
+               moxygen::Payload payload,
+               bool lastInGroup = false) override;
 
   folly::Expected<folly::Unit, moxygen::MoQPublishError>
   datagram(const moxygen::ObjectHeader &header,
-           moxygen::Payload payload) override;
+           moxygen::Payload payload,
+           bool lastInGroup = false) override;
 
   folly::Expected<folly::Unit, moxygen::MoQPublishError>
-  groupNotExists(uint64_t groupID, uint64_t subgroup,
-                 moxygen::Priority pri) override;
-
-  folly::Expected<folly::Unit, moxygen::MoQPublishError>
-  subscribeDone(moxygen::SubscribeDone subDone) override;
+  publishDone(moxygen::PublishDone pubDone) override;
 };
 
 } // namespace interop_test

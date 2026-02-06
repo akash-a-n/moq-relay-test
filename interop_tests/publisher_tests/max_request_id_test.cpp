@@ -1,8 +1,7 @@
-#include "moxygen_adapter/moxygen_mocks.h"
-#include "test_registry.h"
 #include "base/base_test.h"
-#include "moxygen_adapter/moxygen_fixture.h"
-#include "moxygen_adapter/moxygen_interface.h"
+#include "base/fixture_interface.h"
+#include "base/moqt_interface.h"
+#include "test_registry.h"
 #include <folly/coro/BlockingWait.h>
 #include <memory>
 #include <string>
@@ -15,19 +14,16 @@ namespace interop_test {
  */
 class MaxRequestIdTest : public BaseTest {
 public:
-  explicit MaxRequestIdTest(const TestContext &context)
-      : BaseTest(context) {}
+  explicit MaxRequestIdTest(const TestContext &context) : BaseTest(context) {}
   ~MaxRequestIdTest() override = default;
 
   // BaseTest interface
-  std::string getName() const override {
-    return "MaxRequestIdTest";
-  }
+  std::string getName() const override { return "MaxRequestIdTest"; }
   std::string getDescription() const override {
     return "Verifies that a client can successfully set the maximum "
            "concurrent requests on a MoQ session";
   }
-  TestCategory getCategory() const override { return TestCategory::ALL; }
+  TestCategory getCategories() const override { return TestCategory::PUBLISHER; }
 
 protected:
   TestResult execute() override;
@@ -50,8 +46,7 @@ TestResult MaxRequestIdTest::execute() {
 
   // Set max concurrent requests
   log("Calling setMaxConcurrentRequests...");
-  bool result = folly::coro::blockingWait(
-      publisher->setMaxConcurrentRequests(maxConcurrentRequests_));
+  bool result = publisher->setMaxConcurrentRequests(maxConcurrentRequests_);
 
   // Verify the call succeeded
   assertTrue(result, "setMaxConcurrentRequests should succeed");

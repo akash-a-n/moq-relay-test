@@ -42,6 +42,7 @@ file(GLOB LIBEVENT_DIR ${DEPS_BASE_DIR}/libevent*)
 
 # Find main libraries
 # Find all moxygen libraries
+find_library(MOXYGEN_LIB moxygen PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MOQRELAY_LIB moqrelay PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MOQCACHE_LIB moqcache PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
 find_library(MLOGGER_LIB mlogger PATHS ${DEPS_BASE_DIR}/moxygen/lib NO_DEFAULT_PATH)
@@ -52,49 +53,29 @@ find_library(FIZZ_LIB fizz PATHS ${DEPS_BASE_DIR}/fizz/lib NO_DEFAULT_PATH)
 find_library(PROXYGEN_LIB proxygen PATHS ${DEPS_BASE_DIR}/proxygen/lib NO_DEFAULT_PATH)
 find_library(QUIC_WEBTRANSPORT_LIB quicwebtransport PATHS ${DEPS_BASE_DIR}/proxygen/lib NO_DEFAULT_PATH)
 find_library(WANGLE_LIB wangle PATHS ${DEPS_BASE_DIR}/wangle/lib NO_DEFAULT_PATH)
-# Find mvfst libraries explicitly to ensure proper linking order
-find_library(MVFST_TRANSPORT_LIB mvfst_transport PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_CLIENT_LIB mvfst_client PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_FIZZ_CLIENT_LIB mvfst_fizz_client PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_BUF_ACCESSOR_LIB mvfst_buf_accessor PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_STATE_MACHINE_LIB mvfst_state_machine PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_FOLLY_UTILS_LIB mvfst_folly_utils PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-find_library(MVFST_CODEC_LIB mvfst_codec PATHS ${DEPS_BASE_DIR}/mvfst/lib NO_DEFAULT_PATH)
-# Find remaining mvfst libraries with GLOB
-file(GLOB MVFST_REMAINING_LIBS "${DEPS_BASE_DIR}/mvfst/lib/libmvfst*.a")
-
-# Consolidate mvfst libraries in a single list to preserve ordering
-set(MVFST_LIBS
-    ${MVFST_TRANSPORT_LIB}
-    ${MVFST_CLIENT_LIB}
-    ${MVFST_FIZZ_CLIENT_LIB}
-    ${MVFST_BUF_ACCESSOR_LIB}
-    ${MVFST_STATE_MACHINE_LIB}
-    ${MVFST_FOLLY_UTILS_LIB}
-    ${MVFST_CODEC_LIB}
-    ${MVFST_REMAINING_LIBS}
-)
+# Find ALL mvfst libraries using GLOB
+file(GLOB MVFST_LIBS "${DEPS_BASE_DIR}/mvfst/lib/libmvfst*.a")
 find_library(GLOG_LIB glog PATHS ${GLOG_DIR}/lib NO_DEFAULT_PATH)
 find_library(GFLAGS_LIB gflags PATHS ${GFLAGS_DIR}/lib NO_DEFAULT_PATH)
 find_library(FMT_LIB fmt PATHS ${FMT_DIR}/lib NO_DEFAULT_PATH)
 find_library(LIBEVENT_LIB event PATHS ${LIBEVENT_DIR}/lib NO_DEFAULT_PATH)
 find_library(DOUBLE_CONVERSION_LIB double-conversion PATHS ${DOUBLE_CONVERSION_DIR}/lib NO_DEFAULT_PATH)
 
-# Find additional libraries that might be needed
-find_library(SSL_LIB ssl PATHS ${OPENSSL_DIR}/lib NO_DEFAULT_PATH)
-if(NOT SSL_LIB)
-    message(WARNING "SSL library not found in ${OPENSSL_DIR}/lib, trying system-wide")
-    find_library(SSL_LIB ssl)
+# OpenSSL: fbcode_builder uses system OpenSSL, so find it system-wide
+find_library(SSL_LIB ssl)
+find_library(CRYPTO_LIB crypto)
+if(SSL_LIB)
+    message(STATUS "Found SSL library: ${SSL_LIB}")
+endif()
+if(CRYPTO_LIB)
+    message(STATUS "Found Crypto library: ${CRYPTO_LIB}")
 endif()
 
-find_library(CRYPTO_LIB crypto PATHS ${OPENSSL_DIR}/lib NO_DEFAULT_PATH)
-if(NOT CRYPTO_LIB)
-    message(WARNING "Crypto library not found in ${OPENSSL_DIR}/lib, trying system-wide")
-    find_library(CRYPTO_LIB crypto)
-endif()
-
-# libunwind is needed by folly's stacktrace utilities
+# Find libunwind (required by folly for stack traces)
 find_library(UNWIND_LIB unwind)
+if(UNWIND_LIB)
+    message(STATUS "Found libunwind: ${UNWIND_LIB}")
+endif()
 
 # Find lz4 library with more flexible pattern matching
 file(GLOB LZ4_DIRS "${DEPS_BASE_DIR}/lz4*")
@@ -199,11 +180,14 @@ add_executable(interop_tests
     subscriber_tests/subscribe_error_test.cpp
     subscriber_tests/subscribe_namespace_test.cpp
     subscriber_tests/subscribe_namespace_error_test.cpp
+    subscriber_tests/subscribe_update_test.cpp
+    subscriber_tests/subscribe_update_error_test.cpp
     subscriber_tests/track_status_test.cpp
     moxygen_adapter/moxygen_interface.cpp
     moxygen_adapter/moxygen_mocks.cpp
     moxygen_adapter/moxygen_fixture.cpp
     base/base_test.cpp
+    base/moqt_interface.cpp
     ${MOXYGEN_SOURCES}
 )
 
@@ -219,7 +203,6 @@ target_include_directories(interop_tests PRIVATE
     ${DEPS_BASE_DIR}/mvfst/include
     ${BOOST_DIR}/include
     ${DOUBLE_CONVERSION_DIR}/include
-    ${OPENSSL_DIR}/include
     ${LZ4_DIR}/include
     ${LIBEVENT_DIR}/include
 )
@@ -248,14 +231,12 @@ target_link_libraries(interop_tests
     ${MLOGGER_LIB}
     ${MOQMI_LIB}
     ${FLVPARSER_LIB}
-    # Resolve circular references between mvfst static libs and their deps
-    -Wl,--start-group
-    # Proxygen depends on mvfst; place it before mvfst so mvfst can satisfy its symbols
+    # Proxygen and WebTransport
     ${PROXYGEN_LIB}
     ${QUIC_WEBTRANSPORT_LIB}
-    # mvfst static libraries
+    # Then mvfst libraries
     ${MVFST_LIBS}
-    # mvfst depends on these
+    # Then the rest in dependency order
     ${WANGLE_LIB}
     ${FIZZ_LIB}
     ${FOLLY_LIB}
@@ -264,20 +245,42 @@ target_link_libraries(interop_tests
     ${FMT_LIB}
     ${LIBEVENT_LIB}
     ${DOUBLE_CONVERSION_LIB}
-    ${SSL_LIB}
-    ${CRYPTO_LIB}
-    ${UNWIND_LIB}
     ${ZSTD_LIB}
     ${LZ4_LIB}
     ${BOOST_CONTEXT_LIB}
     ${BOOST_SYSTEM_LIB}
     ${BOOST_THREAD_LIB}
-    ${SODIUM_LIB}
-    ${OQS_LIB}
-    -Wl,--end-group
+    # Link mvfst again to resolve circular dependencies
+    ${MVFST_LIBS}
+)
+
+# Add optional libraries only if found
+if(SSL_LIB)
+    target_link_libraries(interop_tests ${SSL_LIB})
+endif()
+if(CRYPTO_LIB)
+    target_link_libraries(interop_tests ${CRYPTO_LIB})
+endif()
+if(SODIUM_LIB)
+    target_link_libraries(interop_tests ${SODIUM_LIB})
+endif()
+if(OQS_LIB)
+    target_link_libraries(interop_tests ${OQS_LIB})
+endif()
+if(UNWIND_LIB)
+    target_link_libraries(interop_tests ${UNWIND_LIB})
+endif()
+
+# Add system libraries
+target_link_libraries(interop_tests
     pthread
     dl
 )
+
+# Only link c++abi on macOS/BSD systems
+if(APPLE OR ${CMAKE_SYSTEM_NAME} MATCHES "BSD")
+    target_link_libraries(interop_tests c++abi)
+endif()
 
 set_target_properties(interop_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

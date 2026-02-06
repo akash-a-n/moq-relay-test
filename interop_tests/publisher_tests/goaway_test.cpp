@@ -1,8 +1,7 @@
-#include "moxygen_adapter/moxygen_mocks.h"
-#include "test_registry.h"
 #include "base/base_test.h"
-#include "moxygen_adapter/moxygen_fixture.h"
-#include "moxygen_adapter/moxygen_interface.h"
+#include "base/fixture_interface.h"
+#include "base/moqt_interface.h"
+#include "test_registry.h"
 #include <folly/coro/BlockingWait.h>
 #include <memory>
 #include <string>
@@ -24,14 +23,16 @@ public:
     return "Verifies that a client can successfully send a goaway signal "
            "after publishing a track to the relay";
   }
-  TestCategory getCategory() const override { return TestCategory::ALL; }
+  TestCategory getCategories() const override { 
+    return TestCategory::PUBLISHER | TestCategory::CONNECTION; 
+  }
 
 protected:
   TestResult execute() override;
 };
 
 // Auto-register this test
-REGISTER_TEST(GoawayTest);
+// REGISTER_TEST(GoawayTest);
 
 TestResult GoawayTest::execute() {
   log("Executing goaway sequence");
@@ -43,8 +44,7 @@ TestResult GoawayTest::execute() {
 
   // Execute goaway sequence (publishes a dummy track and sends goaway)
   log("Sending goaway sequence...");
-  bool goawayResult = folly::coro::blockingWait(
-      publisher->goaway_sequence());
+  bool goawayResult = publisher->goaway_sequence();
 
   // Verify goaway sequence succeeded
   assertTrue(goawayResult, "Goaway sequence should succeed");

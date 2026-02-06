@@ -1,8 +1,6 @@
-#include "moxygen_adapter/moxygen_mocks.h"
-#include "test_registry.h"
 #include "base/base_test.h"
-#include "moxygen_adapter/moxygen_fixture.h"
-#include "moxygen_adapter/moxygen_interface.h"
+#include "base/moqt_interface.h"
+#include "test_registry.h"
 #include <folly/coro/BlockingWait.h>
 #include <memory>
 #include <moxygen/MoQConsumers.h>
@@ -27,7 +25,7 @@ public:
     return "Verifies that a client can subscribe to a published track via the "
            "relay";
   }
-  TestCategory getCategory() const override { return TestCategory::ALL; }
+  TestCategory getCategories() const override { return TestCategory::SUBSCRIBER; }
 
 protected:
   TestResult execute() override;
@@ -35,8 +33,6 @@ protected:
 private:
   std::string trackNamespace_{"test"};
   std::string trackName_{"interop-track"};
-  std::shared_ptr<TestTrackConsumer> trackConsumer_ =
-      std::make_shared<TestTrackConsumer>();
 };
 
 // Auto-register this test
@@ -52,8 +48,7 @@ TestResult SubscribeTest::execute() {
   assertNotNull(publisher.get(), "Publisher interface should not be null");
   assertTrue(publisher->isConnected(), "Publisher should be connected");
 
-  bool publishResult = folly::coro::blockingWait(
-      publisher->publish(trackNamespace_, trackName_));
+  bool publishResult = publisher->publish(trackNamespace_, trackName_);
   assertTrue(publishResult, "Publish request should succeed");
   log("Publish successful");
 
@@ -65,10 +60,8 @@ TestResult SubscribeTest::execute() {
   auto subscriber = fixture_->getSubscriber();
   assertNotNull(subscriber.get(), "Subscriber interface should not be null");
   assertTrue(subscriber->isConnected(), "Subscriber should be connected");
-  assertNotNull(trackConsumer_.get(), "Track consumer should not be null");
 
-  bool subscribed = folly::coro::blockingWait(
-      subscriber->subscribe(trackNamespace_, trackName_, trackConsumer_));
+  bool subscribed = subscriber->subscribe(trackNamespace_, trackName_);
   assertTrue(subscribed, "Subscribe request should succeed");
   log("Subscribe successful");
 
