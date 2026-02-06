@@ -140,6 +140,7 @@ private:
           std::shared_ptr<MockSubscriptionHandle> externalHandle = nullptr);
 
   folly::EventBase *eventBase_;
+  std::shared_ptr<moxygen::MoQFollyExecutorImpl> executor_;
   std::shared_ptr<moxygen::MoQClient> client_;
   std::shared_ptr<moxygen::MoQRelaySession>
       relaySession_; // Cache the casted session

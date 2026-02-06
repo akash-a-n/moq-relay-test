@@ -19,8 +19,9 @@ bool MoxygenInterface::connect(
     std::chrono::milliseconds transactionTimeout, bool useInsecureVerifier) {
 
   try {
-    // Create executor from the provided event base
-    auto executor = std::make_shared<moxygen::MoQFollyExecutorImpl>(eventBase_);
+    // Create executor from the provided event base and store it as member variable
+    // to keep it alive for the lifetime of this interface
+    executor_ = std::make_shared<moxygen::MoQFollyExecutorImpl>(eventBase_);
 
     proxygen::URL parsedUrl(url);
     if (!parsedUrl.isValid()) {
@@ -34,7 +35,7 @@ bool MoxygenInterface::connect(
     }
 
     // Create MoQ client with MoQRelaySession factory for publishNamespace support
-    auto keepAlive = folly::getKeepAliveToken(executor.get());
+    auto keepAlive = folly::getKeepAliveToken(executor_.get());
     client_ = std::make_shared<moxygen::MoQClient>(
         std::move(keepAlive), std::move(parsedUrl),
         moxygen::MoQRelaySession::createRelaySessionFactory(), verifier);
